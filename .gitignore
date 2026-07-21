@@ -1,0 +1,33 @@
+# --- MIMIC-III data: NEVER commit, per PhysioNet data use agreement ---
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+!data/processed/forward_fill/.gitkeep
+!data/processed/linear_interp/.gitkeep
+*.csv.gz
+*.csv
+
+# --- model checkpoints / large artifacts ---
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+results/*
+!results/.gitkeep
+
+# --- python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+*.egg-info/
+
+# --- notebooks ---
+.ipynb_checkpoints/
+
+# --- OS / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/settings.json

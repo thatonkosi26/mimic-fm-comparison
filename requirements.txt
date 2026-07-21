@@ -1,0 +1,13 @@
+numpy>=1.24,<2.0
+pandas>=2.0
+scikit-learn>=1.3
+xgboost>=2.0
+torch>=2.1
+pytorch-forecasting>=1.0
+tqdm>=4.65
+matplotlib>=3.7
+scipy>=1.11
+
+# Chronos (Section 3.5.3) — install separately per Amazon's instructions,
+# pin to whatever version you validate against:
+# pip install git+https://github.com/amazon-science/chronos-forecasting.git
