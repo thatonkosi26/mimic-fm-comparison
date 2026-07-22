@@ -1,8 +1,14 @@
 # MIMIC-III Preprocessing Pipeline
-Supports Chapter 3 of *Evaluating Time-Series Foundation Models for Early Warning
-in Intensive Care Units*.
+
+Supports Chapter 3 of _Evaluating Time-Series Foundation Models for Early Warning
+in Intensive Care Units_.
+
+> **Progress log:** see [PROGRESS.md](PROGRESS.md) for a running record of
+> which pipeline stages have been run, exact commands used, and the output
+> numbers each stage produced — kept up to date as the project progresses.
 
 ## Folder structure
+
 ```
 mimic-fm-comparison/
 ├── config.py                 # all paths + shared constants — edit this first
@@ -28,6 +34,7 @@ mimic-fm-comparison/
 ```
 
 ## Step 0 — prerequisites
+
 - Completed CITI training + PhysioNet data use agreement (you've noted this is done).
 - MIMIC-III v1.4 downloaded. If your files look like
   `C:\Users\thato\Downloads\mimic-iii-clinical-database-1.4\...\PRESCRIPTIONS.csv.gz`,
@@ -35,11 +42,14 @@ mimic-fm-comparison/
   pipeline assumes.
 
 ### Windows / gzip note
+
 `mimic3-benchmarks`'s extraction scripts read plain `.csv`, not `.csv.gz`.
 Decompress once:
+
 ```powershell
 python scripts\decompress_mimic.py
 ```
+
 This reads `config.RAW_MIMIC_GZ_DIR` (your Downloads path) and writes plain
 CSVs to `config.RAW_MIMIC_CSV_DIR`. It's a one-time step — the large tables
 (CHARTEVENTS, LABEVENTS) are several GB each, so it'll take a few minutes
@@ -47,6 +57,7 @@ and you'll need roughly 2x the compressed size in free disk space during
 the copy.
 
 ## Step 1 — cohort extraction (use the existing benchmark repo, don't rebuild it)
+
 ```bash
 git clone https://github.com/YerevaNN/mimic3-benchmarks.git
 cd mimic3-benchmarks
@@ -57,12 +68,14 @@ python -m mimic3benchmark.scripts.split_train_and_test data/root/
 python -m mimic3benchmark.scripts.create_in_hospital_mortality data/root/ data/in-hospital-mortality/
 python -m mimic3models.split_train_val data/in-hospital-mortality/
 ```
+
 This reproduces the exact Harutyunyan et al. (2019) cohort, 17 variables, and
 train/val/test split — using the field-standard implementation keeps your
 results directly comparable to prior work, which is the whole point of citing
 that benchmark.
 
 ## Step 2 — this pipeline
+
 1. Edit `config.py`: set `BENCHMARK_ROOT` to the `data/in-hospital-mortality/`
    folder from Step 1, and `OUTPUT_ROOT` to wherever you want processed arrays.
 2. `pip install numpy pandas tqdm`
@@ -80,6 +93,7 @@ OUTPUT_ROOT/<condition>/norm_stats.npz           training means/stds used for no
 ```
 
 ## Design decisions worth knowing before you use this in your writeup
+
 - **Normalisation and imputation fallback means are fit on train only**, then
   applied unchanged to val/test — this is what Section 3.3 requires and what
   protects against test-set leakage.
@@ -88,7 +102,7 @@ OUTPUT_ROOT/<condition>/norm_stats.npz           training means/stds used for no
   underlying representation of each patient course — differences you observe
   should trace to the model, not to different data views.
 - **Missingness fraction** (17 of the 102 features) comes from the observation
-  mask *before* imputation, so the models retain the "was this ever measured"
+  mask _before_ imputation, so the models retain the "was this ever measured"
   signal even though the imputed values themselves are filled in — this is
   the informative-missingness point raised in Section 2.6.
 - GCS fields are label-encoded from their ordinal string form before any
@@ -101,6 +115,7 @@ OUTPUT_ROOT/<condition>/norm_stats.npz           training means/stds used for no
   the traditional ones — this pipeline only covers up through Section 3.5.1.
 
 ## Suggested next files to build
+
 - `train_baselines.py` — LR/RF/XGBoost with the CV grids from Sec 3.5.1
 - `train_lstm_tft.py` — PyTorch training loop with weighted BCE (Sec 3.5.2)
 - `chronos_eval.py` — zero-shot + fine-tuned Chronos (Sec 3.5.3)

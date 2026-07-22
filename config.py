@@ -23,7 +23,7 @@ RAW_MIMIC_GZ_DIR = r"C:\Users\thato\Downloads\mimic-iii-clinical-database-1.4\mi
 RAW_MIMIC_CSV_DIR = r"C:\Users\thato\mimic-iii-decompressed"  # output of the one-time gunzip step
 
 # ---- mimic3-benchmarks output (Step 1) / this pipeline's input ----
-BENCHMARK_ROOT = r"C:\Users\thato\mimic3-benchmarks\data\in-hospital-mortality"
+BENCHMARK_ROOT = r"C:\Users\thato\Downloads\mimic3-benchmarks\data\in-hospital-mortality"
 OUTPUT_ROOT = os.path.join(PROJECT_ROOT, "data", "processed")
 
 TRAIN_DIR = os.path.join(BENCHMARK_ROOT, "train")
