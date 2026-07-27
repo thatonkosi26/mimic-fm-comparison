@@ -149,8 +149,61 @@ model implementation (Stage 5).
 
 ---
 
-## Stage 5+: Model training and evaluation
+## Stage 5: Traditional ML baselines (models/baselines.py)
+
+**Status:** Complete — verified
+
+Logistic regression, Random Forest, and XGBoost (Section 3.5.1), with
+uniform inverse-frequency class weighting (Section 3.4), trained and
+evaluated on both imputation conditions.
+
+### Issues hit and fixed along the way
+
+- **Nested parallelism**: initial version set `n_jobs=-1` on both the CV
+  search and the individual estimators (RF/XGBoost), causing worker
+  processes to compete for cores. Fixed by parallelising only at the
+  search level (`N_JOBS`, configurable via env var, default
+  `min(4, cpu_count)`), estimators run single-threaded per fit.
+- **Out-of-memory on Windows**: `n_jobs=-1` spawns one process per core,
+  and Windows has to re-import numpy/scipy/sklearn per worker (no fork),
+  which is RAM-expensive. First real run with `N_JOBS=4` completed but
+  had 9/500 individual CV fits fail with `MemoryError`/`bad_malloc`
+  (scikit-learn scored these as NaN and proceeded with the rest
+  automatically). Re-ran with `N_JOBS=2` for a fully clean pass -- zero
+  failures, and results were identical to the decimal against the
+  `N_JOBS=4` run, confirming the dropped fits didn't affect the outcome.
+- **Convergence warnings for logistic regression**: the 102 static
+  features are on very different scales (GCS ~3-15, heart rate ~60-150,
+  observation counts 0-48). Fixed by fitting a `StandardScaler` inside
+  the CV pipeline ahead of `LogisticRegression` (scaler refit per
+  training fold, no leakage).
+
+### Final results (N_JOBS=2, clean run, no failed fits)
+
+| Condition     | Model               | Val AUROC | Test AUROC |
+| ------------- | ------------------- | --------- | ---------- |
+| forward_fill  | logistic_regression | 0.7968    | 0.8103     |
+| forward_fill  | random_forest       | 0.8254    | 0.8252     |
+| forward_fill  | xgboost             | 0.8151    | 0.8332     |
+| linear_interp | logistic_regression | 0.7997    | 0.8158     |
+| linear_interp | random_forest       | 0.8252    | 0.8296     |
+| linear_interp | xgboost             | 0.8191    | 0.8369     |
+
+Best hyperparameters, per-condition val/test predictions, and trained
+models saved to `results/baselines/<condition>/`.
+
+Note for the discussion chapter: these test AUROCs (0.81-0.84) are
+somewhat below the 0.85-0.92 range reported in the RF/XGBoost literature
+cited in Section 2.2 (Ashrafi et al. 2024 in particular). Plausible
+reasons to explore later: different cohort definition/size, uniform
+(not per-model-tuned) class-weighting strategy applied here for fairness
+across all five configurations, or the 102-feature summary-statistic
+representation being less rich than what those studies used.
+
+---
+
+## Stage 6+: Deep learning and foundation model baselines
 
 **Status:** Not started
-Pending: `models/baselines.py`, `models/lstm.py`, `models/tft.py`,
-`models/chronos_eval.py`, `evaluation/evaluate.py`.
+Pending: `models/lstm.py`, `models/tft.py`, `models/chronos_eval.py`,
+`evaluation/evaluate.py`.
