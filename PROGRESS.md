@@ -241,6 +241,27 @@ per-model tuning being the main driver.
 
 ---
 
+## Stage 7: Temporal Fusion Transformer (models/tft.py)
+
+**Status:** In progress — dependency setup complete, training not yet run
+
+### Environment fix needed before training
+
+Installing `pytorch-forecasting` surfaced a numpy version issue:
+
+- `requirements.txt` originally pinned `numpy<2.0`, written before torch/
+  xgboost were already installed against numpy 2.x. On Python 3.13, numpy
+  1.26.4 has no prebuilt Windows wheel, so pip built it from source via
+  MinGW -- flagged by numpy itself as experimental and crash-prone.
+- Fixed by relaxing the pin to `numpy>=2.0,<2.5` (the upper bound matches
+  scipy 1.15.3's stated requirement). Verified clean: no warnings from
+  numpy, scipy, torch, xgboost, sklearn, or pytorch_forecasting imports.
+- Lesson: avoid pinning below what's already working unless there's a
+  specific reason -- an overly cautious pin caused more friction here
+  than no pin would have.
+
+---
+
 ## Stage 7+: Temporal Fusion Transformer, Chronos, and evaluation
 
 **Status:** Not started
