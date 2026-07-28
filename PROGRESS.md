@@ -202,8 +202,46 @@ representation being less rich than what those studies used.
 
 ---
 
-## Stage 6+: Deep learning and foundation model baselines
+## Stage 6: Channel-wise LSTM (models/lstm.py)
+
+**Status:** Complete — verified
+
+Section 3.5.2's channel-wise LSTM (shared 2-layer LSTM per channel,
+hidden dim 128, dropout 0.3), weighted BCE loss, Adam (lr=1e-3) with
+LR reduction on validation-AUROC plateau, early stopping (patience=10).
+Ran on CPU (no GPU available on this machine) -- completed without
+issue, no memory problems this time.
+
+### Training behaviour
+
+- Both conditions stopped via early stopping at **epoch 45** (max was
+  100), after the LR had been reduced three times (1e-3 -> 5e-4 -> 2.5e-4
+  -> 1.25e-4 -> 6.25e-5), consistent with genuine convergence rather than
+  a bug -- loss decreased steadily and val AUROC plateaued exactly as
+  expected before stopping triggered.
+
+### Final results
+
+| Condition     | Model | Val AUROC | Test AUROC | Epochs trained |
+| ------------- | ----- | --------- | ---------- | -------------- |
+| forward_fill  | lstm  | 0.8132    | 0.8276     | 45             |
+| linear_interp | lstm  | 0.8117    | 0.8219     | 45             |
+
+Model checkpoints, val/test predictions, and per-epoch training history
+saved to `results/lstm/<condition>/`.
+
+Note for the discussion chapter: consistent with the baselines, these
+test AUROCs (~0.82-0.83) sit below Harutyunyan et al. (2019)'s reported
+~0.86 for their channel-wise LSTM. Same plausible explanations apply
+(cohort/preprocessing differences, no per-model tuning beyond what's
+specified) -- worth digging into directly once all five configurations
+are done, since a consistent ~3-4 point gap across model families
+suggests something systematic in the pipeline/cohort rather than
+per-model tuning being the main driver.
+
+---
+
+## Stage 7+: Temporal Fusion Transformer, Chronos, and evaluation
 
 **Status:** Not started
-Pending: `models/lstm.py`, `models/tft.py`, `models/chronos_eval.py`,
-`evaluation/evaluate.py`.
+Pending: `models/tft.py`, `models/chronos_eval.py`, `evaluation/evaluate.py`.
