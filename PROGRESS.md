@@ -262,7 +262,49 @@ Installing `pytorch-forecasting` surfaced a numpy version issue:
 
 ---
 
-## Stage 7+: Temporal Fusion Transformer, Chronos, and evaluation
+## Stage 7: Temporal Fusion Transformer (models/tft.py)
+
+**Status:** Complete — verified
+
+Section 3.5.2's TFT via pytorch-forecasting, adapted for binary
+classification (CrossEntropy loss, output_size=2, over a 47-hour
+encoder + 1-step classification target -- see docstring in tft.py for
+the full adaptation rationale). Ran on CPU. 4-config hyperparameter grid
+(hidden_size x attention_head_size) x 2 conditions, selecting best by
+validation AUROC per Section 3.5.2's "tuned on the validation set".
+
+### Training behaviour
+
+- ~55-70s/epoch depending on config size; most configs ran the full 30
+  epochs without early stopping firing (val_loss kept marginally
+  improving), a couple stopped at epoch 29. No crashes, no memory issues
+  -- the numpy/scipy version fix held up cleanly under real training.
+
+### Final results (best config per condition, by val AUROC)
+
+| Condition     | Best hidden_size | Best attention_heads | Val AUROC | Test AUROC |
+| ------------- | ---------------- | -------------------- | --------- | ---------- |
+| forward_fill  | 32               | 4                    | 0.8140    | 0.8255     |
+| linear_interp | 16               | 1                    | 0.8124    | 0.8163     |
+
+Predictions and best hyperparameters saved to `results/tft/<condition>/`.
+
+Consistent with the pattern across all model families so far: test
+AUROC clustering around 0.81-0.83, still below the ~0.86 Harutyunyan
+LSTM/TFT literature benchmarks -- reinforces that this is likely a
+systematic pipeline/cohort effect worth discussing directly (Section on
+Discussion), rather than anything specific to one architecture.
+
+---
+
+## Stage 8+: Chronos (foundation model) and evaluation
 
 **Status:** Not started
-Pending: `models/tft.py`, `models/chronos_eval.py`, `evaluation/evaluate.py`.
+Pending: `models/chronos_eval.py` (zero-shot + fine-tuned, Section
+3.5.3), `evaluation/evaluate.py` (AUROC/AUPRC/F1/ECE + bootstrap CIs +
+McNemar imputation-sensitivity test, Section 3.6).
+
+Note: Chronos fine-tuning is the step most likely to need GPU access
+(Section 4's schedule specifically flagged this). Worth confirming
+whether School GPU compute is available before starting this stage --
+running Chronos-Large fine-tuning on CPU may not be practical.
