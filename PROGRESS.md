@@ -297,14 +297,52 @@ Discussion), rather than anything specific to one architecture.
 
 ---
 
-## Stage 8+: Chronos (foundation model) and evaluation
+## Stage 8: Chronos zero-shot (models/chronos_eval.py)
+
+**Status:** Quick-mode verified — full run not yet started
+
+### Model size decision
+
+Benchmarked mini/small/base on this CPU-only machine
+(`scripts/benchmark_chronos.py`) before committing:
+
+| Model | Params | Est. full zero-shot runtime (both conditions) |
+| ----- | ------ | --------------------------------------------- |
+| Mini  | 20.5M  | ~12.5 hours                                   |
+| Small | 46.2M  | ~17.1 hours                                   |
+| Base  | 201.4M | ~96.0 hours                                   |
+
+Chose **Chronos-Small**: meaningful capability step up from Mini without
+Base's 4-day single-run risk. Large (710M) ruled out entirely as
+impractical without GPU -- consistent with the proposal's own documented
+fallback plan (Section 3.5.3).
+
+### Quick-mode test (50 episodes/split, both conditions)
+
+Ran cleanly end to end -- no errors, real model, real batching,
+checkpointing confirmed working (verified separately with a mock
+pipeline: interrupting and resuming only recomputes missing channels,
+not the whole run). Observed **~93ms per episode per channel**,
+consistent with the original batch-size-1 benchmark (85.5ms) -- batching
+at `BATCH_SIZE=32` did not meaningfully reduce per-episode cost on this
+hardware, so the original ~17-hour estimate stands as realistic (not
+improved by batching as hoped, but not worse either). Recalculated:
+21,139 episodes x 2 conditions x 17 channels x ~93ms ~= **~18.5 hours**
+for the full run.
+
+Quick-mode AUROCs (0.59-0.86) are NOT meaningful -- only 50 episodes,
+for pipeline-correctness testing only, not reported as results.
+
+### Next step
+
+Run the full pass: `python models/chronos_eval.py` (CHRONOS_QUICK_MODE
+unset). Given the ~18.5 hour estimate, this will span multiple sessions
+-- per-channel checkpointing means it's safe to stop and resume.
+
+---
+
+## Stage 9+: Chronos fine-tuning and evaluation
 
 **Status:** Not started
-Pending: `models/chronos_eval.py` (zero-shot + fine-tuned, Section
-3.5.3), `evaluation/evaluate.py` (AUROC/AUPRC/F1/ECE + bootstrap CIs +
-McNemar imputation-sensitivity test, Section 3.6).
-
-Note: Chronos fine-tuning is the step most likely to need GPU access
-(Section 4's schedule specifically flagged this). Worth confirming
-whether School GPU compute is available before starting this stage --
-running Chronos-Large fine-tuning on CPU may not be practical.
+Pending: fine-tuned Chronos configuration (Section 3.5.3, second half),
+`evaluation/evaluate.py` (Section 3.6).
