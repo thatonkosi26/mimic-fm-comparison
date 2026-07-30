@@ -299,7 +299,7 @@ Discussion), rather than anything specific to one architecture.
 
 ## Stage 8: Chronos zero-shot (models/chronos_eval.py)
 
-**Status:** Quick-mode verified — full run not yet started
+**Status:** Complete — verified
 
 ### Model size decision
 
@@ -317,32 +317,45 @@ Base's 4-day single-run risk. Large (710M) ruled out entirely as
 impractical without GPU -- consistent with the proposal's own documented
 fallback plan (Section 3.5.3).
 
-### Quick-mode test (50 episodes/split, both conditions)
+### Full run
 
-Ran cleanly end to end -- no errors, real model, real batching,
-checkpointing confirmed working (verified separately with a mock
-pipeline: interrupting and resuming only recomputes missing channels,
-not the whole run). Observed **~93ms per episode per channel**,
-consistent with the original batch-size-1 benchmark (85.5ms) -- batching
-at `BATCH_SIZE=32` did not meaningfully reduce per-episode cost on this
-hardware, so the original ~17-hour estimate stands as realistic (not
-improved by batching as hoped, but not worse either). Recalculated:
-21,139 episodes x 2 conditions x 17 channels x ~93ms ~= **~18.5 hours**
-for the full run.
+Completed in one continuous pass, no interruption needed (~18 hours
+total, matching the recalibrated estimate from quick-mode testing:
+~90ms/episode/channel observed consistently across the full run).
+Per-channel checkpointing (verified separately via mock pipeline) was
+available as a safety net but wasn't needed this time.
 
-Quick-mode AUROCs (0.59-0.86) are NOT meaningful -- only 50 episodes,
-for pipeline-correctness testing only, not reported as results.
+### Final results
 
-### Next step
+| Condition     | Val AUROC | Test AUROC |
+| ------------- | --------- | ---------- |
+| forward_fill  | 0.7680    | 0.7692     |
+| linear_interp | 0.7636    | 0.7734     |
 
-Run the full pass: `python models/chronos_eval.py` (CHRONOS_QUICK_MODE
-unset). Given the ~18.5 hour estimate, this will span multiple sessions
--- per-channel checkpointing means it's safe to stop and resume.
+**Key finding**: zero-shot Chronos clearly underperforms every other
+model family (all of which cluster at 0.81-0.84 test AUROC). This
+directly reproduces the pattern reported by Gu et al. (2025) and
+Rockenschaub et al. (2024) -- foundation models pretrained on
+general-domain time-series don't transfer well to clinical data
+zero-shot. This is a genuine, citable finding for Research Question 1
+and the Discussion chapter: no prior study had shown this specifically
+on the standard MIMIC-III mortality benchmark under controlled
+conditions (the gap identified in Section 2.9).
+
+Features, model, and predictions saved to
+`results/chronos/<condition>/zeroshot_*`.
 
 ---
 
 ## Stage 9+: Chronos fine-tuning and evaluation
 
 **Status:** Not started
-Pending: fine-tuned Chronos configuration (Section 3.5.3, second half),
-`evaluation/evaluate.py` (Section 3.6).
+Pending: fine-tuned Chronos configuration (Section 3.5.3, second half --
+this addresses Research Question 2: does fine-tuning close the gap seen
+in zero-shot?), `evaluation/evaluate.py` (Section 3.6).
+
+Note: fine-tuning involves backpropagation through the encoder across
+multiple epochs, so per-epoch cost will be higher than the ~18-hour
+zero-shot single-pass estimate above. Needs explicit planning (epoch
+budget, whether to fine-tune the full encoder or a subset of layers)
+before starting, given the CPU-only constraint.
