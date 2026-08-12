@@ -540,49 +540,61 @@ and substantially reduces ECE across every model (e.g. TFT/forward_fill:
 that raw model outputs are generally poorly calibrated, and post-hoc
 calibration matters regardless of which model family is used.
 
-### Imputation sensitivity (Section 3.6.3, Research Question 3)
+### Imputation sensitivity (Section 3.6.3, Research Question 3) — REVISED
 
-| Model               | FF AUROC | LI AUROC | Delta   | CI overlap | McNemar stat | p-value | FF-only pos. | LI-only pos. | Significant |
-| ------------------- | -------- | -------- | ------- | ---------- | ------------ | ------- | ------------ | ------------ | ----------- |
-| logistic_regression | 0.8103   | 0.8158   | -0.0055 | True       | 27.25        | <0.0001 | 26           | 81           | **Yes**     |
-| random_forest       | 0.8252   | 0.8296   | -0.0044 | True       | 8.14         | 0.0043  | 55           | 28           | **Yes**     |
-| xgboost             | 0.8332   | 0.8369   | -0.0037 | True       | 7.78         | 0.0053  | 107          | 69           | **Yes**     |
-| lstm                | 0.8276   | 0.8219   | +0.0057 | True       | 32.31        | <0.0001 | 42           | 114          | **Yes**     |
-| tft                 | 0.8255   | 0.8163   | +0.0092 | True       | 39.51        | <0.0001 | 57           | 148          | **Yes**     |
-| chronos_zeroshot    | 0.7692   | 0.7734   | -0.0042 | True       | 33.47        | <0.0001 | 57           | 9            | **Yes**     |
-| chronos_finetuned   | 0.7764   | 0.7773   | -0.0009 | True       | 37.96        | <0.0001 | 64           | 10           | **Yes**     |
+Initial run (own-threshold McNemar only) found every model significant,
+which risked over-claiming "all models are sensitive to imputation."
+Added a second, shared-threshold McNemar variant to
+`evaluation/evaluate.py`: both conditions' predictions binarised using
+forward_fill's threshold (the Harutyunyan-standard reference condition),
+isolating genuine score-level disagreement from threshold-selection
+artifacts. Verified correct via three deliberately constructed synthetic
+cases before trusting it on real data: identical scores + no threshold
+shift (both variants correctly p=1.0), identical scores + large
+threshold shift (own-threshold significant, shared-threshold correctly
+p=1.0 -- confirms artifact isolation), and a genuine systematic score
+shift (both variants correctly significant).
 
-**Key finding, directly answering Research Question 3:** every single
-model shows a statistically significant McNemar result, despite AUROC
-deltas being tiny (all under 0.01) with fully overlapping confidence
-intervals. This is not a contradiction -- it reflects two different
-things being measured:
+**Final results on real data:**
 
-- **Aggregate discriminative power (AUROC)** is essentially robust to
-  imputation choice across every model family tested.
-- **Individual classification decisions** (which specific patients get
-  flagged positive at the chosen threshold) shift meaningfully with
-  imputation choice -- in some cases (TFT: 57 vs 148; LSTM: 42 vs 114)
-  affecting well over 100 patients net.
+| Model               | Threshold delta (FF-LI) | Own-threshold p | Shared-threshold p | Interpretation                              |
+| ------------------- | ----------------------- | --------------- | ------------------ | ------------------------------------------- |
+| logistic_regression | 0.0207                  | <0.0001         | 0.8453             | **Threshold artifact**                      |
+| lstm                | 0.0240                  | <0.0001         | 0.0875             | **Largely threshold artifact** (borderline) |
+| random_forest       | 0.0049                  | 0.0043          | 0.0003             | **Genuine score sensitivity**               |
+| xgboost             | -0.0661                 | 0.0053          | <0.0001            | **Genuine score sensitivity**               |
+| tft                 | 0.1242                  | <0.0001         | <0.0001            | **Genuine score sensitivity**               |
+| chronos_zeroshot    | -0.0082                 | <0.0001         | 0.0005             | **Genuine score sensitivity**               |
+| chronos_finetuned   | -0.0548                 | <0.0001         | <0.0001            | **Genuine score sensitivity**               |
 
-This is a genuinely useful nuance for the discussion chapter: imputation
-strategy doesn't meaningfully change how well a model RANKS patients by
-risk, but it can change WHO crosses a clinical decision threshold --
-which matters a great deal in a deployment context even when it barely
-moves a headline AUROC number.
+**Notable correction to an earlier eyeball-based guess:** before building
+the shared-threshold test, I incorrectly guessed from the raw threshold
+gap alone that TFT's sensitivity (the single largest threshold shift,
+0.124) was "largely threshold-driven." The rigorous shared-threshold
+test overturned this: TFT's disagreement survives even with the
+threshold held fixed (p<0.0001) -- its risk scores themselves genuinely
+differ between imputation conditions, independent of where the cutoff
+sits. This is worth stating directly in the methodology chapter as the
+justification for building the shared-threshold control rather than
+relying on visual inspection of threshold gaps.
 
-**Caveat to check before writing this up as a firm conclusion:** since
-the F1-optimal threshold is selected independently per condition
-(Section 3.6.2), part of the individual-decision disagreement could be a
-threshold-selection artifact (a shifted cutoff reclassifying borderline
-patients) rather than the underlying risk scores themselves differing
-substantially between conditions. Worth inspecting the actual threshold
-values per model/condition in `results/evaluation/full_results.csv`
-before finalising this interpretation in the discussion chapter.
+**Final, precise answer to Research Question 3:** imputation strategy's
+effect on individual classification decisions is not uniform across
+model families. Five of seven models (Random Forest, XGBoost, TFT,
+Chronos zero-shot, Chronos fine-tuned) show genuine, threshold-
+independent sensitivity to imputation choice -- their underlying risk
+estimates for individual patients meaningfully differ between
+forward_fill and linear_interp. Two models (logistic regression, and to
+a lesser/borderline extent LSTM) have their apparent sensitivity
+substantially explained by the independently-selected decision threshold
+shifting, rather than the models' risk scores themselves changing much.
+In all cases, though, AUROC itself remains essentially stable across
+imputation conditions (deltas under 0.01, fully overlapping CIs) --
+reinforcing that this is specifically an individual-decision-level
+phenomenon, not one visible in aggregate ranking performance.
 
-Full results: `results/evaluation/full_results.csv`,
-`results/evaluation/imputation_sensitivity.csv`,
-`results/evaluation/full_results_summary.md`.
+Full detail (including raw discordant-pair counts for both threshold
+variants): `results/evaluation/imputation_sensitivity.csv`.
 
 ---
 
