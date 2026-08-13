@@ -72,11 +72,11 @@ MODEL_PRED_PATHS = {
 }
 
 
-def _load_labels(condition, split):
+def load_labels(condition, split):
     return np.load(os.path.join(OUTPUT_ROOT, condition, split, "labels.npy"))
 
 
-def _load_predictions(model_name, condition):
+def load_predictions(model_name, condition):
     val_rel, test_rel = MODEL_PRED_PATHS[model_name](condition)
     val_path = os.path.join(RESULTS_ROOT, val_rel)
     test_path = os.path.join(RESULTS_ROOT, test_rel)
@@ -86,9 +86,9 @@ def _load_predictions(model_name, condition):
 
 
 def evaluate_one(model_name, condition):
-    val_labels = _load_labels(condition, "val")
-    test_labels = _load_labels(condition, "test")
-    val_probs, test_probs = _load_predictions(model_name, condition)
+    val_labels = load_labels(condition, "val")
+    test_labels = load_labels(condition, "test")
+    val_probs, test_probs = load_predictions(model_name, condition)
     if val_probs is None:
         print(f"  SKIP {model_name}/{condition}: prediction files not found")
         return None
