@@ -605,3 +605,45 @@ variants): `results/evaluation/imputation_sensitivity.csv`.
 # imputation conditions compared. Ready to move to writing the Results
 
 # and Discussion chapters.
+
+## Stage 11: Results figures (evaluation/generate_figures.py)
+
+**Status:** Complete
+
+Generated all Results-chapter figures, reusing `evaluate.py`'s exact
+prediction-loading logic (renamed `_load_predictions`/`_load_labels` to
+public `load_predictions`/`load_labels` since they're now genuinely
+shared across both scripts, not private to `evaluate.py`):
+
+- `roc_curves_forward_fill.png` / `roc_curves_linear_interp.png` -- all
+  7 models overlaid per condition, AUROC in legend
+- `calibration_forward_fill.png` / `calibration_linear_interp.png` --
+  reliability diagrams, raw vs after Platt scaling, side by side
+- `model_comparison_auroc.png` -- grouped bar chart, both conditions,
+  95% bootstrap CI error bars pulled directly from `full_results.csv`
+
+All saved as 300 DPI PNG (Word-ready) and PDF (LaTeX-ready) to
+`results/figures/`.
+
+One real bug caught during testing (before handing off): the comparison
+chart's y-axis was initially hardcoded to `[0.5, 0.9]`, which would
+silently clip any model exceeding 0.9 AUROC (didn't affect this
+project's real numbers, all under 0.84, but was fragile). Fixed to size
+the axis dynamically from the actual CI bounds in the data.
+
+Ran successfully against real results -- all 5 figures generated
+without error.
+
+---
+
+# CHAPTER 3 (Sections 3.2-3.6) AND ALL SUPPORTING FIGURES ARE COMPLETE.
+
+# The full empirical pipeline -- preprocessing, all 7 model
+
+# configurations, evaluation with bootstrap CIs and McNemar tests, and
+
+# Results-chapter figures -- is built, verified, and reproducible.
+
+# Remaining work is dissertation writing (Results/Discussion chapters,
+
+# tables formatted for the document itself).
