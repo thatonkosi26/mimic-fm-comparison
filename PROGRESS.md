@@ -8,6 +8,10 @@ from memory later.
 Convention: one entry per completed stage. Record the command(s) run, the
 key output/numbers, and anything that needed a decision or fix.
 
+Where a later stage corrected or qualified an earlier entry, the earlier
+entry carries a clearly marked **Correction** or **Update** note (original
+text kept) rather than being silently rewritten.
+
 ---
 
 ## Stage 1: Raw data decompression
@@ -328,15 +332,17 @@ available as a safety net but wasn't needed this time.
 | forward_fill  | 0.7680    | 0.7692     |
 | linear_interp | 0.7636    | 0.7734     |
 
-**Key finding**: zero-shot Chronos clearly underperforms every other
-model family (all of which cluster at 0.81-0.84 test AUROC). This
-directly reproduces the pattern reported by Gu et al. (2025) and
-Rockenschaub et al. (2024) -- foundation models pretrained on
-general-domain time-series don't transfer well to clinical data
-zero-shot. This is a genuine, citable finding for Research Question 1
-and the Discussion chapter: no prior study had shown this specifically
-on the standard MIMIC-III mortality benchmark under controlled
-conditions (the gap identified in Section 2.9).
+**Key finding**: zero-shot Chronos-Small scores lower than every other
+model family (all of which cluster at 0.81-0.84 test AUROC). This is
+consistent with the pattern reported by Gu et al. (2025) for ICU
+vital-sign forecasting and Rockenschaub et al. (2024) for critical-care
+classification tasks: foundation models pretrained on general-domain
+time series do not transfer well to clinical data zero-shot. In the
+literature reviewed for the dissertation (a narrative review, not a
+systematic one) no comparison of this kind was found on the standard
+MIMIC-III mortality benchmark under matched conditions (the gap
+identified in Section 2.9), so this is reported as a controlled
+data point, not as a claim to be the first.
 
 Features, model, and predictions saved to
 `results/chronos/<condition>/zeroshot_*`.
@@ -405,8 +411,9 @@ checking `encoder_grad_norm > 0` after a backward pass.
   not an approximation) and that checkpoint/resume still works correctly
   with it enabled.
 - **Mid-epoch checkpointing was essential, not just precautionary**: a
-  single epoch of fine-tuning takes on the order of hours (measured via
-  quick-mode timing extrapolation: ~13-14 hours/epoch/condition), so
+  single epoch of fine-tuning takes on the order of hours (real logs:
+  ~11-12 hours/epoch/condition; the quick-mode extrapolation had
+  predicted ~13-14, see the correction under Timing below), so
   checkpointing only at epoch boundaries (as used for the LSTM) would
   have been far too coarse. Checkpoints save every 50 batches, capturing
   model state, optimizer state, epoch, and batch index. The real run
@@ -420,14 +427,29 @@ checking `encoder_grad_norm > 0` after a backward pass.
   over the full training set), just means exact bit-for-bit
   reproducibility isn't preserved across an interruption.
 
-### Timing (quick-mode extrapolation, confirmed by the real run)
+### Timing (quick-mode extrapolation vs the real logs)
 
 50 train + 50 val episodes/epoch took ~195-246s in quick mode. Scaled to
 the real split sizes (14,681 train / 3,222 val), this predicted ~13-14
-hours/epoch/condition -- the real run's `linear_interp` epoch 3 alone
-took 21,764s (~6.0 hours) for the training portion, consistent with that
-estimate once accounting for checkpoint-driven inaccuracy (the
-extrapolation was somewhat conservative).
+hours/epoch/condition.
+
+**Correction (added in Stage 12):** the real per-epoch times in
+`results/chronos/<condition>/finetuned_training_history.json` are:
+
+| Condition     | Epoch 1 | Epoch 2 | Epoch 3         | Total              |
+| ------------- | ------- | ------- | --------------- | ------------------ |
+| forward_fill  | 11.3 h  | 11.5 h  | 12.0 h          | 34.8 h (125,402 s) |
+| linear_interp | 11.4 h  | 11.5 h  | 6.0 h (partial) | >= 28.9 h          |
+
+So a full epoch took ~11.3-12.0 h, slightly less than the extrapolation.
+`linear_interp` epoch 3 (21,764 s) only timed the portion after the
+accidental interruption, so its true total is longer than 28.9 h
+(probably close to the forward_fill 34.8 h). Use these log values, not the
+13-14 h estimate, when quoting fine-tuning cost.
+
+Validation AUROC was still rising at epoch 3 in both conditions
+(forward_fill 0.7555 -> 0.7663; linear_interp 0.7557 -> 0.7678), so early
+stopping never triggered.
 
 ### Final results
 
@@ -460,18 +482,25 @@ model, more epochs, or GPU-enabled training over more data might behave
 differently, and this limitation is worth stating explicitly rather than
 implying the result generalises beyond what was actually tested.
 
+**Update (Stage 13):** a small MLP trained on FROZEN Chronos-Small features
+scored ~0.80-0.81 test AUROC, well above this fine-tuned model (0.776 /
+0.777), at ~2 h of feature extraction instead of ~35 h of fine-tuning.
+Two differences between the setups may explain part of this: the
+fine-tuned classifier received the 34 features UNSTANDARDISED (the frozen
+MLP standardises them), and fine-tuning stopped after 3 epochs with
+validation AUROC still rising. Neither was tested. Read the result above
+as a lower bound on what fine-tuning could achieve, not as evidence that
+fine-tuning cannot help.
+
 Model, val/test predictions, and per-epoch training history saved to
 `results/chronos/<condition>/finetuned_*`.
 
 ---
 
-## All five task-specific model configurations, plus Chronos zero-shot and
-
-## fine-tuned, are now COMPLETE and verified across both imputation
-
-## conditions. This is the full empirical core of the dissertation (all
-
-## of Chapter 3, Sections 3.2-3.5.3).
+> **Milestone:** all five task-specific model configurations, plus Chronos
+> zero-shot and fine-tuned, are COMPLETE and verified across both
+> imputation conditions. This is the full empirical core of Chapter 3
+> (Sections 3.2-3.5.3).
 
 ## Stage 10: Evaluation (evaluation/evaluate.py)
 
@@ -598,13 +627,9 @@ variants): `results/evaluation/imputation_sensitivity.csv`.
 
 ---
 
-# ALL OF CHAPTER 3 (Sections 3.2-3.6) IS NOW COMPLETE, VERIFIED, AND
-
-# REPRODUCIBLE. Every model trained, every metric computed, both
-
-# imputation conditions compared. Ready to move to writing the Results
-
-# and Discussion chapters.
+> **Milestone:** all of Chapter 3 (Sections 3.2-3.6) is complete,
+> verified and reproducible. Every model trained, every metric computed,
+> both imputation conditions compared.
 
 ## Stage 11: Results figures (evaluation/generate_figures.py)
 
@@ -636,14 +661,174 @@ without error.
 
 ---
 
-# CHAPTER 3 (Sections 3.2-3.6) AND ALL SUPPORTING FIGURES ARE COMPLETE.
+> **Milestone:** Chapter 3 and all supporting figures are complete. The full
+> empirical pipeline (preprocessing, all 7 model configurations,
+> evaluation with bootstrap CIs and McNemar tests, Results figures) is
+> built, verified and reproducible. Stages 12-13 below add cost timing and
+> a Chronos model-size comparison in response to supervisor feedback.
 
-# The full empirical pipeline -- preprocessing, all 7 model
+---
 
-# configurations, evaluation with bootstrap CIs and McNemar tests, and
+## Stage 12: Computational cost timing (scripts/time_models.py)
 
-# Results-chapter figures -- is built, verified, and reproducible.
+**Status:** Complete — verified (quick run, then real run)
 
-# Remaining work is dissertation writing (Results/Discussion chapters,
+Supervisor feedback asked for a cost table backing up the Research
+Question 4 claims. Before this stage only Chronos had logged timings;
+baseline/LSTM/TFT training times and all inference times were unrecorded.
 
-# tables formatted for the document itself).
+`scripts/time_models.py` measures, on the machine it runs on:
+
+- **Inference** on the saved models (baselines, LSTM, fine-tuned Chronos
+  weights) as seconds per patient. TFT weights were never saved by
+  `tft.py`, so the best config is re-trained for 2 epochs and that model
+  is timed (inference time does not depend on how well trained the weights
+  are). Chronos is timed on a sample of 96 test patients and scaled.
+- **Training:** one final fit with the chosen hyperparameters for the
+  baselines (the CV search cost is an ESTIMATE: final-fit time x number of
+  CV fits x 0.8 + 1, single core); a few real epochs for LSTM/TFT
+  multiplied by the epochs the real runs used (ESTIMATE); Chronos
+  fine-tuning read from `finetuned_training_history.json`.
+
+Each section runs inside its own try/except, so one failure is logged as
+`FAILED` and the others still run; results are saved after every section.
+
+Commands (after `set KMP_DUPLICATE_LIB_OK=TRUE`):
+
+```
+set TIMING_QUICK=1 & python scripts\time_models.py    # quick run: all 5 sections ran, no failures
+set TIMING_QUICK=                                     # clear the variable first
+python scripts\time_models.py                         # real run
+```
+
+Output: `results/timing/timing_results_cpu_laptop.csv`. Hardware: Windows 11,
+8 logical CPUs, PyTorch 2.7.0 (CPU, 4 threads), Python 3.13.3, no GPU.
+Condition timed: forward_fill (timing does not depend on imputation).
+
+### Results (forward_fill, CPU only)
+
+| Model                       | Training time                                                 | Inference (ms/patient) | Full test set (3,236)  |
+| --------------------------- | ------------------------------------------------------------- | ---------------------- | ---------------------- |
+| Logistic regression         | 1.1 s final fit; search ~23 s (est.)                          | 0.0009                 | 0.003 s                |
+| Random Forest               | 26 s final fit; search ~86 min on one core (est.)             | 0.056                  | 0.18 s                 |
+| XGBoost                     | 5.6 s final fit; search ~19 min on one core (est.)            | 0.011                  | 0.04 s                 |
+| LSTM                        | ~3.1 h (est.: 245 s/epoch x 45 epochs)                        | 2.83                   | 9.2 s                  |
+| TFT                         | ~2.2 h (est.: 66.8 s/epoch x 29 epochs x 4 configs)           | 2.33                   | 7.5 s                  |
+| Chronos zero-shot (sampled) | ~18 h for both conditions together (measured, Stage 8)        | 1372                   | ~74 min (extrapolated) |
+| Chronos fine-tuned          | 34.8 h, 3 epochs, forward_fill (log); >= 28.9 h linear_interp | 341                    | ~18 min (extrapolated) |
+
+### Notes
+
+- Fine-tuned Chronos is ~4x faster per patient than zero-shot because it
+  computes mean/variance exactly instead of drawing 20 samples.
+- The fine-tuning epoch time (~11.3-12.0 h) corrects the 13-14 h
+  extrapolation quoted in Stage 9 (see the correction there).
+- LSTM and TFT totals assume the real runs' epoch counts (45 and 29); the
+  TFT figure assumes every grid configuration costs about the same as the
+  best one (smaller configs are slightly faster).
+- Real baseline searches used up to 4 cores, so their wall-clock time was
+  shorter than the single-core estimates above.
+
+---
+
+## Stage 13: Chronos model-size comparison (models/chronos_sizes.py)
+
+**Status:** Complete — verified (timing run, quick run, then full run)
+
+Supervisor feedback: the central claim ("Chronos underperforms") was only
+tested for Chronos-Small. No GPU/cluster was available, so a
+laptop-feasible extension was designed:
+
+- Zero-shot (frozen) Chronos at **Mini (20.5M), Small (46.2M), Base
+  (201.4M)**, both imputation conditions, full train/val/test splits.
+- Features = the same 34 numbers (17 channel means + 17 variances), but
+  computed **exactly** from the output softmax (same maths as in
+  `chronos_finetune.py`) instead of from 20 sampled draws. ~4x faster per
+  patient, which made Base feasible. This is a different feature method
+  from Stage 8, so it is reported as an ADDITIONAL experiment; Stage 8
+  (sampled, Small) remains the main zero-shot result.
+- Two heads on the frozen features: logistic regression (balanced, C=1,
+  as in Stage 8) and a 2-layer MLP (34-64-1, weighted BCE, features
+  standardised on train statistics, early stopping on val AUROC,
+  patience 10).
+- No encoder training, so no epochs. Features are cached per channel/
+  split/condition/size (`results/chronos_sizes/cache/`), so an interrupted
+  run resumes at the next unfinished channel.
+
+Commands (after `set KMP_DUPLICATE_LIB_OK=TRUE`):
+
+```
+set CHRONOS_SIZES_TIME_ONLY=1 & python models\chronos_sizes.py                              # projection only
+set CHRONOS_SIZES_TIME_ONLY= & set CHRONOS_QUICK_MODE=1 & python models\chronos_sizes.py    # correctness only
+set CHRONOS_QUICK_MODE= & python models\chronos_sizes.py                                    # full run
+```
+
+Gotcha hit once: `CHRONOS_SIZES_TIME_ONLY=1` stays set in the terminal and
+makes later runs only time. Clear it before the real run. Quick mode writes
+to `results/chronos_sizes_quick/` and its AUROCs (50 patients per split) are
+not valid.
+
+### Timing: projection vs reality
+
+| Size  | Projected (64-patient test) | Measured per condition      |
+| ----- | --------------------------- | --------------------------- |
+| Mini  | 1.1 h                       | 0.88 h (fwd) / 0.86 h (lin) |
+| Small | 2.3 h                       | 2.00 h / 2.03 h             |
+| Base  | 8.9 h                       | 8.26 h / 8.31 h             |
+
+Total ~22.3 h CPU time for 3 sizes x 2 conditions. Per patient: Mini 0.15 s,
+Small 0.34 s, Base 1.41 s.
+
+### Results (test AUROC; validation AUROC in brackets)
+
+| Size  | Condition     | LR head         | MLP head        |
+| ----- | ------------- | --------------- | --------------- |
+| Mini  | forward_fill  | 0.7749 (0.7674) | 0.8033 (0.7986) |
+| Mini  | linear_interp | 0.7753 (0.7674) | 0.8000 (0.7977) |
+| Small | forward_fill  | 0.7747 (0.7656) | 0.8053 (0.7988) |
+| Small | linear_interp | 0.7776 (0.7645) | 0.8006 (0.7956) |
+| Base  | forward_fill  | 0.7790 (0.7668) | 0.8067 (0.7997) |
+| Base  | linear_interp | 0.7754 (0.7688) | 0.7996 (0.7999) |
+
+Reference (Stages 8-9): Small zero-shot sampled 0.7692 / 0.7734; Small
+fine-tuned 0.7764 / 0.7773.
+
+Sanity check, Small exact vs sampled features (test split): means
+correlate 0.988 (forward_fill) / 0.966 (linear_interp); variances only
+0.585 / 0.423, which is plausible because a variance from 20 draws is
+noisy.
+
+### What this does and does not show
+
+- With the LR head, a ~10x increase in parameters changes test AUROC by at
+  most 0.004, far inside the ~0.04-0.05 width of the bootstrap CIs: no
+  clear size trend.
+- The MLP head scores ~0.80-0.81 at every size, above the fine-tuned Small
+  run (0.776 / 0.777) at ~2 h of extraction instead of ~35 h of
+  fine-tuning. This makes the Stage 9 conclusion weaker than it first
+  looked (see the Update note there). Which factor explains the difference
+  (feature standardisation, training length, or the encoder updates
+  themselves) was NOT tested.
+- Only a 34-number summary of a next-step forecast was used (not the
+  encoder's internal embeddings), weights were frozen, and NO bootstrap
+  CIs, threshold metrics or calibration were computed for these runs, so
+  differences of a few thousandths must not be ranked.
+
+Output: `results/chronos_sizes/summary.csv`, plus per-size/condition
+features and predictions under `results/chronos_sizes/<size>/<condition>/`.
+
+---
+
+## Paper formatting and write-up notes
+
+- The report was converted to IEEE journal style (`IEEEtran`, two columns,
+  10 pt; `main.tex` + `references.bib`) per supervisor feedback.
+- Write-up changes made with it: abstract under 250 words; novelty claims
+  rewritten as "in the literature reviewed (a narrative review) I did not
+  find..."; sensitivity/specificity discussion; table of bootstrap CI
+  widths; computational cost table; Section IV-E (size comparison) and the
+  matching Discussion, Limitations, Future Work and Conclusion edits.
+- Still open: bootstrap CIs and threshold metrics for the Stage 13 runs;
+  an optional cleaner fine-tuning test (train the head first on
+  standardised features, then fine-tune the encoder); GPU/cluster runs of
+  larger fine-tuning if access is arranged.

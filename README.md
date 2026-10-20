@@ -1,14 +1,17 @@
 # MIMIC-III Time-Series Foundation Model Comparison
 
 Code for _Evaluating Time-Series Foundation Models for Early Warning in
-Intensive Care Units_ (Wits BSc Honours dissertation, Big Data Analytics).
+Intensive Care Units_ (Wits BSc Honours research report, Big Data Analytics).
 
-**Status: Chapter 3 (Sections 3.2–3.6) is complete.** All five
-task-specific models, plus Chronos zero-shot and fine-tuned, have been
-trained and evaluated on both imputation conditions. Full evaluation
-(bootstrap CIs, McNemar imputation-sensitivity tests) is done. See
-[PROGRESS.md](PROGRESS.md) for the complete stage-by-stage log — exact
-commands run, real output numbers, every issue hit and how it was fixed.
+**Status: the core experiments (Chapter 3, Sections 3.2–3.6) are complete,
+plus two follow-ups.** All five task-specific models, plus Chronos zero-shot
+and fine-tuned, have been trained and evaluated on both imputation
+conditions, with bootstrap confidence intervals and McNemar
+imputation-sensitivity tests. Follow-ups: a cost timing run
+(`scripts/time_models.py`) and a Chronos model-size comparison
+(`models/chronos_sizes.py`). See [PROGRESS.md](PROGRESS.md) for the
+stage-by-stage log: exact commands run, real output numbers, every issue hit
+and how it was fixed.
 
 ## Folder structure
 
@@ -36,8 +39,9 @@ mimic-fm-comparison/
 │   ├── baselines.py              # LR / Random Forest / XGBoost (Section 3.5.1)
 │   ├── lstm.py                   # channel-wise LSTM (Section 3.5.2)
 │   ├── tft.py                    # Temporal Fusion Transformer (Section 3.5.2)
-│   ├── chronos_eval.py           # Chronos zero-shot (Section 3.5.3)
-│   └── chronos_finetune.py       # Chronos fine-tuned (Section 3.5.3)
+│   ├── chronos_eval.py           # Chronos-Small zero-shot, sampled features (Section 3.5.3)
+│   ├── chronos_finetune.py       # Chronos-Small fine-tuned (Section 3.5.3)
+│   └── chronos_sizes.py          # frozen Chronos Mini/Small/Base, exact features + 2 heads (Stage 13)
 │
 ├── evaluation/
 │   ├── metrics.py                # AUROC/AUPRC/F1/ECE, bootstrap CI, McNemar
@@ -48,13 +52,16 @@ mimic-fm-comparison/
 │   ├── lstm/<condition>/
 │   ├── tft/<condition>/
 │   ├── chronos/<condition>/      # zero-shot + fine-tuned outputs, plus checkpoints/
-│   └── evaluation/                # full_results.csv, imputation_sensitivity.csv, summary.md
+│   ├── chronos_sizes/            # Mini/Small/Base frozen-feature runs (Stage 13)
+│   ├── timing/                   # timing_results_<label>.csv (Stage 12)
+│   └── evaluation/               # full_results.csv, imputation_sensitivity.csv, summary.md
 │
 ├── scripts/
 │   ├── decompress_mimic.py       # one-time .csv.gz -> .csv step
 │   ├── find_bad_events_csv.py    # diagnostic: scan events.csv files for parse errors
 │   ├── verify_benchmark_output.py # sanity-check mimic3-benchmarks output before the full build
-│   └── benchmark_chronos.py      # times Chronos model sizes on your hardware before committing
+│   ├── benchmark_chronos.py      # times Chronos model sizes on your hardware before committing
+│   └── time_models.py            # training/inference timing for all models (Stage 12)
 │
 └── tests/
     └── test_pipeline_output.py   # shape/leakage/NaN checks on build_dataset.py output
@@ -141,12 +148,15 @@ data/processed/<condition>/norm_stats.npz
 
 ## Step 3 — train all models
 
+Approximate CPU times on the laptop used for this project (8 logical cores,
+no GPU; see PROGRESS.md Stage 12 for how each figure was obtained):
+
 ```powershell
-python models\baselines.py          # LR/RF/XGBoost, both conditions (~minutes)
-python models\lstm.py               # channel-wise LSTM (~1-2 hours CPU)
-python models\tft.py                # TFT, 4-config grid search (~hours CPU)
-python models\chronos_eval.py       # Chronos zero-shot (~18 hours CPU, Chronos-Small)
-python models\chronos_finetune.py   # Chronos fine-tuned (~multi-day CPU, checkpointed)
+python models\baselines.py          # LR/RF/XGBoost, both conditions (~minutes; RF search is the slowest part)
+python models\lstm.py               # channel-wise LSTM (~3 hours per condition, estimated)
+python models\tft.py                # TFT, 4-config grid search (~2 hours per condition, estimated)
+python models\chronos_eval.py       # Chronos-Small zero-shot, sampled (~18 hours for both conditions)
+python models\chronos_finetune.py   # Chronos-Small fine-tuned (~35 hours per condition for 3 epochs, checkpointed)
 ```
 
 For the two Chronos scripts specifically:
@@ -178,40 +188,85 @@ results/evaluation/imputation_sensitivity.csv
 results/evaluation/full_results_summary.md
 ```
 
+## Step 5 — optional follow-up experiments
+
+```powershell
+set KMP_DUPLICATE_LIB_OK=TRUE
+
+:: Cost timing: training + inference per model (~15-30 min on a laptop)
+set TIMING_QUICK=1 & python scripts\time_models.py      :: quick test first
+set TIMING_QUICK=  & python scripts\time_models.py
+:: -> results\timing\timing_results_<label>.csv   (label = TIMING_LABEL, default cpu_laptop)
+
+:: Chronos size comparison: frozen weights, exact mean/variance features, two heads
+set CHRONOS_SIZES_TIME_ONLY=1 & python models\chronos_sizes.py                              :: projected runtime first
+set CHRONOS_SIZES_TIME_ONLY= & set CHRONOS_QUICK_MODE=1 & python models\chronos_sizes.py    :: quick test, results NOT valid
+set CHRONOS_QUICK_MODE= & python models\chronos_sizes.py                                    :: full run, ~22 h CPU for 3 sizes x 2 conditions
+:: -> results\chronos_sizes\summary.csv
+```
+
+Both scripts save progress (`chronos_sizes.py` per channel), so an
+interrupted run resumes when re-run. **Clear any `*_TIME_ONLY` and
+`*_QUICK*` variables before a real run**: they persist in the terminal
+session and silently turn a real run into a timing or quick run.
+
 ## Results summary
 
-All seven model configurations, test set, both imputation conditions —
+All seven main model configurations, test set, both imputation conditions —
 full numbers and confidence intervals in
 `results/evaluation/full_results.csv` (see PROGRESS.md Stage 10 for the
 complete table):
 
-| Model                | Test AUROC (forward_fill / linear_interp) |
-| -------------------- | ----------------------------------------- |
-| Logistic regression  | 0.810 / 0.816                             |
-| Random Forest        | 0.825 / 0.830                             |
-| XGBoost              | 0.833 / 0.837                             |
-| LSTM                 | 0.828 / 0.822                             |
-| TFT                  | 0.826 / 0.816                             |
-| Chronos (zero-shot)  | 0.769 / 0.773                             |
-| Chronos (fine-tuned) | 0.776 / 0.777                             |
+| Model                               | Test AUROC (forward_fill / linear_interp) |
+| ----------------------------------- | ----------------------------------------- |
+| Logistic regression                 | 0.810 / 0.816                             |
+| Random Forest                       | 0.825 / 0.830                             |
+| XGBoost                             | 0.833 / 0.837                             |
+| LSTM                                | 0.828 / 0.822                             |
+| TFT                                 | 0.826 / 0.816                             |
+| Chronos-Small zero-shot (sampled)   | 0.769 / 0.773                             |
+| Chronos-Small fine-tuned (3 epochs) | 0.776 / 0.777                             |
+
+Follow-up: frozen Chronos at three sizes, exact features (Stage 13; no
+confidence intervals computed for these runs, so do not rank differences of
+a few thousandths):
+
+| Model         | forward_fill: LR head / MLP head | linear_interp: LR head / MLP head |
+| ------------- | -------------------------------- | --------------------------------- |
+| Chronos-Mini  | 0.775 / 0.803                    | 0.775 / 0.800                     |
+| Chronos-Small | 0.775 / 0.805                    | 0.778 / 0.801                     |
+| Chronos-Base  | 0.779 / 0.807                    | 0.775 / 0.800                     |
 
 **Headline findings:**
 
-- Zero-shot Chronos clearly underperforms every task-specific model
-  (~0.77 vs ~0.81–0.84 AUROC), directly reproducing Gu et al. (2025) and
-  Rockenschaub et al. (2024)'s finding that foundation models don't
-  transfer well to clinical time-series zero-shot — now shown on the
-  standard MIMIC-III mortality benchmark specifically.
-- Fine-tuning gives only a marginal improvement (<1 percentage point)
-  and does not close the gap to task-specific models, under the
-  resource-constrained fine-tuning budget used here (3 epochs,
-  Chronos-Small, CPU-only).
+- Zero-shot Chronos-Small scored lower than every task-specific model
+  (~0.77 vs ~0.81–0.84 AUROC). This is consistent with Gu et al. (2025)
+  and Rockenschaub et al. (2024), who reported similar problems for ICU
+  vital-sign forecasting and critical-care classification tasks. In the
+  literature reviewed for this project (a narrative review, not a
+  systematic one) I did not find a comparison of this kind on the standard
+  MIMIC-III mortality benchmark.
+- Fine-tuning Chronos-Small gave only a small gain (< 1 percentage point)
+  under a short, CPU-limited budget (3 epochs). Treat this as a lower
+  bound: a small MLP trained on frozen Chronos-Small features scored higher
+  (~0.80), and the fine-tuned classifier used unstandardised features, so
+  the two setups are not directly comparable.
+- Across Chronos-Mini/Small/Base (20M–201M parameters) with a linear head,
+  AUROC stayed within 0.004 (~0.775–0.779): no clear size trend. A trained
+  MLP head on the same frozen features reached ~0.80–0.81 at every size.
 - AUROC is essentially robust to imputation strategy across every model
   (deltas under 0.01). However, individual classification decisions are
   not: 5 of 7 models show genuine, threshold-independent sensitivity to
   imputation choice; 2 (logistic regression, and borderline LSTM) have
   their apparent sensitivity substantially explained by
   threshold-selection shifts rather than the underlying risk scores.
+- At the F1-optimal threshold every model had sensitivity of only
+  0.41–0.53 (specificity 0.88–0.93): they miss about half of the deaths,
+  which matters for any early-warning use.
+- Chronos is by far the most expensive model on CPU: fine-tuning took
+  ~35 h for 3 epochs, and inference ~0.34 s/patient (fine-tuned) to
+  ~1.4 s/patient (zero-shot, sampled), versus under 3 ms/patient for the
+  LSTM and TFT. All timings are CPU-only upper bounds.
 
 ## Design decisions worth knowing before you use this in your writeup
 
@@ -233,12 +288,21 @@ complete table):
   needs gradient updates. Verified via a local test that gradients from
   this analytic path genuinely reach every encoder parameter. See
   `models/chronos_finetune.py`'s docstring.
+- **The Chronos size comparison uses the exact (softmax-expectation)
+  mean/variance features, not sampling**, because it is ~4x faster and is
+  the same calculation as the fine-tuning path. It is reported as an
+  additional experiment; the sampled Chronos-Small run remains the main
+  zero-shot result. Two heads are trained on the frozen features:
+  logistic regression (as in zero-shot) and a standardised, early-stopped
+  2-layer MLP. The fine-tuned model's classifier did not standardise its
+  features, so the fine-tuned and frozen-MLP results are not a clean
+  comparison.
 - **Model sizes and hyperparameter grids were chosen under real CPU-only
-  constraints** (no GPU access) — Chronos-Small over Large, small TFT/RF
-  search grids, 3-epoch Chronos fine-tuning budget. Each choice is
-  benchmarked and documented at the point it's made, not asserted
-  without justification — see PROGRESS.md for the reasoning and numbers
-  behind each one.
+  constraints** (no GPU access) — Chronos-Small for the main experiments,
+  small TFT/RF search grids, 3-epoch Chronos fine-tuning budget. Each
+  choice is benchmarked and documented at the point it's made, not
+  asserted without justification — see PROGRESS.md for the reasoning and
+  numbers behind each one.
 - GCS fields are label-encoded from their ordinal string form
   (`preprocessing/imputation.py`) — double-check this matches your
   actual benchmark CSV format if you re-run extraction with a different
@@ -250,3 +314,9 @@ All random seeds fixed via `config.RANDOM_SEED` (42), used consistently
 across numpy, torch, and sklearn `random_state` arguments throughout.
 Full run log with exact commands and real output at every stage:
 [PROGRESS.md](PROGRESS.md).
+
+MIMIC-III data and anything derived from it at patient level (processed
+arrays, saved predictions, model outputs) must stay out of version control
+under the PhysioNet data use agreement; `.gitignore` is set up for this.
+Check `git status` before committing, especially under `results/` and
+`data/`.
