@@ -664,8 +664,9 @@ without error.
 > **Milestone:** Chapter 3 and all supporting figures are complete. The full
 > empirical pipeline (preprocessing, all 7 model configurations,
 > evaluation with bootstrap CIs and McNemar tests, Results figures) is
-> built, verified and reproducible. Stages 12-13 below add cost timing and
-> a Chronos model-size comparison in response to supervisor feedback.
+> built, verified and reproducible. Stages 12-14 below add cost timing,
+> a Chronos model-size comparison, and bootstrap CIs with paired tests for
+> it, in response to supervisor feedback.
 
 ---
 
@@ -810,12 +811,114 @@ noisy.
   (feature standardisation, training length, or the encoder updates
   themselves) was NOT tested.
 - Only a 34-number summary of a next-step forecast was used (not the
-  encoder's internal embeddings), weights were frozen, and NO bootstrap
-  CIs, threshold metrics or calibration were computed for these runs, so
-  differences of a few thousandths must not be ranked.
+  encoder's internal embeddings) and the weights were frozen.
+- Bootstrap CIs and paired tests for these runs were added in Stage 14;
+  without them, differences of a few thousandths must not be ranked.
+  Threshold metrics and calibration (Platt scaling) were not computed for
+  these runs.
 
 Output: `results/chronos_sizes/summary.csv`, plus per-size/condition
 features and predictions under `results/chronos_sizes/<size>/<condition>/`.
+
+---
+
+## Stage 14: Bootstrap CIs and paired tests for the size runs (evaluation/bootstrap_sizes.py)
+
+**Status:** Complete — verified
+
+`evaluation/evaluate.py` only covers the seven main configurations, so the
+Stage 13 runs had no confidence intervals. `evaluation/bootstrap_sizes.py`
+adds them, using the same recipe as the main evaluation (1,000 bootstrap
+resamples of the test set, with the validation-chosen F1-optimal threshold
+held fixed), plus **paired bootstrap differences in AUROC**: two models are
+scored on the same test patients and the same resamples, so a difference's
+CI is tighter and fairer than comparing two separate CIs by eye. A
+difference is "significant" when its 95% CI excludes 0.
+
+Command: `python evaluation\bootstrap_sizes.py` (numpy/pandas/scikit-learn
+only, a few minutes). Output in `results/evaluation/`:
+`bootstrap_sizes.csv` (AUROC/AUPRC/F1 with CIs, sensitivity, specificity),
+`bootstrap_sizes_paired.csv` (all pairs), `bootstrap_sizes_table.tex`.
+
+**Self-check against Stage 10:** for the 6 main models in both conditions
+the script reproduced `full_results.csv` exactly (largest differences:
+threshold 0, F1 5.6e-17, sensitivity 5.6e-17, specificity 1.1e-16, AUROC 0),
+so the threshold, F1, sensitivity and specificity of the size runs are
+directly comparable with the main table. TFT is deliberately excluded
+(its predictions come from the pytorch-forecasting dataloader, so the order
+must be checked against the labels before pairing).
+
+### AUROC with 95% bootstrap CI (test)
+
+| Model (head) | forward_fill            | linear_interp           |
+| ------------ | ----------------------- | ----------------------- |
+| Mini, LR     | 0.7749 [0.7501, 0.8007] | 0.7753 [0.7502, 0.8017] |
+| Mini, MLP    | 0.8033 [0.7800, 0.8265] | 0.8000 [0.7775, 0.8233] |
+| Small, LR    | 0.7747 [0.7483, 0.8009] | 0.7776 [0.7526, 0.8029] |
+| Small, MLP   | 0.8053 [0.7810, 0.8286] | 0.8006 [0.7777, 0.8234] |
+| Base, LR     | 0.7790 [0.7529, 0.8041] | 0.7754 [0.7502, 0.8017] |
+| Base, MLP    | 0.8067 [0.7836, 0.8297] | 0.7996 [0.7770, 0.8221] |
+
+### Paired AUROC differences (A - B), forward_fill / linear_interp
+
+| A                | B                           | forward_fill                       | linear_interp                      |
+| ---------------- | --------------------------- | ---------------------------------- | ---------------------------------- |
+| Base LR          | Mini LR                     | +0.0042 [-0.0022, +0.0111] ns      | +0.0002 [-0.0036, +0.0036] ns      |
+| Base MLP         | Mini MLP                    | +0.0035 [-0.0029, +0.0094] ns      | -0.0003 [-0.0075, +0.0069] ns      |
+| Small MLP        | Small LR                    | +0.0306 [+0.0146, +0.0471] **sig** | +0.0230 [+0.0079, +0.0381] **sig** |
+| Small LR (exact) | Chronos zero-shot (sampled) | +0.0055 [-0.0024, +0.0128] ns      | +0.0042 [+0.0004, +0.0077] **sig** |
+| Small LR (exact) | Chronos fine-tuned          | -0.0017 [-0.0130, +0.0091] ns      | +0.0003 [-0.0079, +0.0082] ns      |
+| Small MLP        | Chronos fine-tuned          | +0.0289 [+0.0127, +0.0442] **sig** | +0.0232 [+0.0084, +0.0374] **sig** |
+| Base MLP         | Chronos fine-tuned          | +0.0303 [+0.0148, +0.0450] **sig** | +0.0223 [+0.0075, +0.0374] **sig** |
+| Mini MLP         | Logistic regression         | -0.0070 [-0.0271, +0.0133] ns      | -0.0159 [-0.0359, +0.0032] ns      |
+| Small MLP        | Logistic regression         | -0.0050 [-0.0246, +0.0157] ns      | -0.0153 [-0.0361, +0.0048] ns      |
+| Base MLP         | Logistic regression         | -0.0036 [-0.0233, +0.0161] ns      | -0.0162 [-0.0366, +0.0036] ns      |
+
+(ns = 95% CI includes 0. Also significant, from the same run: frozen MLP vs
+sampled zero-shot at every size, +0.026 to +0.038; Mini MLP vs Mini LR,
++0.028 forward_fill and +0.025 linear_interp; Base MLP vs Base LR, +0.028
+and +0.024. Full list of all 66 pairs: `bootstrap_sizes_paired.csv`.)
+
+### What this shows
+
+- **No size effect:** no size difference is significant for either head or
+  condition (largest: Base - Mini, LR head, forward_fill, +0.004).
+- **The head matters:** the MLP head beats the LR head significantly at
+  all three sizes in both conditions (+0.023 to +0.031).
+- **Frozen MLP beats fine-tuning:** the frozen MLP head is significantly
+  better than the fine-tuned Chronos-Small at every size and condition
+  (+0.022 to +0.030) and than sampled zero-shot (+0.026 to +0.038).
+- **Fine-tuning gave nothing over a linear head on frozen features:**
+  fine-tuned Small is not significantly different from the frozen exact LR
+  head (differences -0.002 to +0.003).
+- **The gap to logistic regression is not significant** for the frozen MLP
+  head (-0.004 to -0.016, every CI includes 0). **But it is significantly
+  below the stronger task-specific models:** Random Forest (-0.019 to
+  -0.030; borderline under forward_fill, upper CI limit within 0.001 of 0
+  for Small and Base), XGBoost (-0.027 to -0.037) and LSTM (-0.021 to
+  -0.024), at every size and condition. So frozen Chronos + MLP head is
+  about level with logistic regression, not with the top of the ceiling.
+- **Exact vs sampled features:** differences are small; only Small
+  linear_interp (+0.0042, lower CI +0.0004) and Base LR forward_fill
+  (+0.0098) are significant against sampled zero-shot.
+- Caveats from Stage 13 still apply (unstandardised fine-tuned classifier,
+  3-epoch budget, 34-number summary features, frozen weights). Which
+  factor explains the fine-tuning result was not tested. The main models
+  were not re-tested pairwise against each other.
+
+### AUPRC, F1, sensitivity, specificity (size runs, 95% CIs)
+
+Full values are in `bootstrap_sizes.csv` (and the paper's appendix). In
+short: AUPRC 0.366-0.410 and F1 0.394-0.432 across all 12 runs, with CI
+widths of ~0.11 (AUPRC) and ~0.09 (F1); sensitivity 0.39-0.55 and
+specificity 0.87-0.92 at the F1-optimal threshold, the same pattern as
+the main models (every model misses about half of the deaths).
+
+### Also added
+
+`evaluation/make_cost_figure.py` draws the AUROC-versus-inference-cost
+figure used in the paper (values hard-coded at the top of the script;
+output `results/figures/auroc_vs_cost.png`).
 
 ---
 
@@ -828,7 +931,6 @@ features and predictions under `results/chronos_sizes/<size>/<condition>/`.
   find..."; sensitivity/specificity discussion; table of bootstrap CI
   widths; computational cost table; Section IV-E (size comparison) and the
   matching Discussion, Limitations, Future Work and Conclusion edits.
-- Still open: bootstrap CIs and threshold metrics for the Stage 13 runs;
-  an optional cleaner fine-tuning test (train the head first on
+- Still open: an optional cleaner fine-tuning test (train the head first on
   standardised features, then fine-tune the encoder); GPU/cluster runs of
   larger fine-tuning if access is arranged.

@@ -45,7 +45,9 @@ mimic-fm-comparison/
 │
 ├── evaluation/
 │   ├── metrics.py                # AUROC/AUPRC/F1/ECE, bootstrap CI, McNemar
-│   └── evaluate.py               # pulls all 7 models' predictions, computes everything (Section 3.6)
+│   ├── evaluate.py               # pulls all 7 models' predictions, computes everything (Section 3.6)
+│   ├── bootstrap_sizes.py        # bootstrap CIs + paired AUROC tests for the Chronos size runs (Stage 14)
+│   └── make_cost_figure.py       # AUROC-versus-inference-cost figure used in the paper
 │
 ├── results/                      # gitignored — all model outputs, predictions, final tables
 │   ├── baselines/<condition>/
@@ -203,6 +205,13 @@ set CHRONOS_SIZES_TIME_ONLY=1 & python models\chronos_sizes.py                  
 set CHRONOS_SIZES_TIME_ONLY= & set CHRONOS_QUICK_MODE=1 & python models\chronos_sizes.py    :: quick test, results NOT valid
 set CHRONOS_QUICK_MODE= & python models\chronos_sizes.py                                    :: full run, ~22 h CPU for 3 sizes x 2 conditions
 :: -> results\chronos_sizes\summary.csv
+
+:: Bootstrap CIs + paired AUROC tests for the size runs (a few minutes; needs the size runs and Step 4 first)
+python evaluation\bootstrap_sizes.py
+:: -> results\evaluation\bootstrap_sizes.csv, bootstrap_sizes_paired.csv, bootstrap_sizes_table.tex
+
+:: Figure for the paper: AUROC versus inference cost
+python evaluation\make_cost_figure.py
 ```
 
 Both scripts save progress (`chronos_sizes.py` per channel), so an
@@ -227,9 +236,9 @@ complete table):
 | Chronos-Small zero-shot (sampled)   | 0.769 / 0.773                             |
 | Chronos-Small fine-tuned (3 epochs) | 0.776 / 0.777                             |
 
-Follow-up: frozen Chronos at three sizes, exact features (Stage 13; no
-confidence intervals computed for these runs, so do not rank differences of
-a few thousandths):
+Follow-up: frozen Chronos at three sizes, exact features (Stages 13–14; the
+95% CIs are about 0.05 wide, so compare models with the paired tests in
+PROGRESS.md Stage 14, not by eye):
 
 | Model         | forward_fill: LR head / MLP head | linear_interp: LR head / MLP head |
 | ------------- | -------------------------------- | --------------------------------- |
@@ -248,12 +257,18 @@ a few thousandths):
   MIMIC-III mortality benchmark.
 - Fine-tuning Chronos-Small gave only a small gain (< 1 percentage point)
   under a short, CPU-limited budget (3 epochs). Treat this as a lower
-  bound: a small MLP trained on frozen Chronos-Small features scored higher
-  (~0.80), and the fine-tuned classifier used unstandardised features, so
-  the two setups are not directly comparable.
-- Across Chronos-Mini/Small/Base (20M–201M parameters) with a linear head,
-  AUROC stayed within 0.004 (~0.775–0.779): no clear size trend. A trained
-  MLP head on the same frozen features reached ~0.80–0.81 at every size.
+  bound: a small MLP trained on frozen Chronos-Small features scored
+  significantly higher (~0.80, difference +0.022 to +0.030, paired
+  bootstrap), and the fine-tuned classifier used unstandardised features,
+  so the two setups are not directly comparable. Fine-tuned Small was not
+  significantly different from a linear head on frozen features.
+- Across Chronos-Mini/Small/Base (20M–201M parameters) AUROC differed by
+  at most 0.004 and no size difference was significant (paired bootstrap).
+  A trained MLP head on the same frozen features reached ~0.80–0.81 at
+  every size: significantly above the linear head, the fine-tuned model
+  and sampled zero-shot, and not significantly different from logistic
+  regression on summary features, but still significantly below Random
+  Forest, XGBoost and the LSTM.
 - AUROC is essentially robust to imputation strategy across every model
   (deltas under 0.01). However, individual classification decisions are
   not: 5 of 7 models show genuine, threshold-independent sensitivity to
