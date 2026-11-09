@@ -334,10 +334,11 @@ available as a safety net but wasn't needed this time.
 
 **Key finding**: zero-shot Chronos-Small scores lower than every other
 model family (all of which cluster at 0.81-0.84 test AUROC). This is
-consistent with the pattern reported by Gu et al. (2025) for ICU
-vital-sign forecasting and Rockenschaub et al. (2024) for critical-care
-classification tasks: foundation models pretrained on general-domain
-time series do not transfer well to clinical data zero-shot. In the
+consistent with the caution of Gu et al. (2025) for ICU vital-sign
+forecasting (their conclusion: the "ChatGPT moment" for time-series
+foundation models in the clinical domain has not yet arrived): foundation
+models pretrained on general-domain time series may not transfer well to
+clinical data zero-shot. In the
 literature reviewed for the dissertation (a narrative review, not a
 systematic one) no comparison of this kind was found on the standard
 MIMIC-III mortality benchmark under matched conditions (the gap
@@ -931,6 +932,32 @@ output `results/figures/auroc_vs_cost.png`).
   find..."; sensitivity/specificity discussion; table of bootstrap CI
   widths; computational cost table; Section IV-E (size comparison) and the
   matching Discussion, Limitations, Future Work and Conclusion edits.
+- **Reference check (done before submission):** three bibliography entries
+  were found to be wrong and corrected. (1) arXiv:2411.16346 had been
+  attributed to "Rockenschaub et al. 2024"; it is actually Burger et al.
+  (2024), "Towards Foundation Models for Critical Care Time Series" (NeurIPS
+  2024 AIM-FM workshop), a harmonised dataset and benchmark paper. The
+  earlier claim that Rockenschaub et al. found foundation models transfer
+  poorly to critical-care classification was NOT supported and was removed.
+  (2) Ashrafi et al. (2024) authors were corrected to Ashrafi, Abdollahi,
+  Zhang, Pishgar. (3) YAIB (van de Water et al., ICLR 2024) authors were
+  corrected to van de Water, Schmidt, Elbers, Thoral, Arnrich, Rockenschaub.
+  (4) Thoral et al. (AmsterdamUMCdb): full title, a missing author
+  (Girbes) and pages (e563-e577) corrected. Claims were also corrected to
+  match the sources: Chronos was evaluated on 42 datasets (15 in-domain,
+  27 zero-shot, not "42 zero-shot"), uses a 4,096-token vocabulary, and
+  ranges from 20M to 710M parameters in the paper; He et al. (2025) is a
+  survey of healthcare foundation models (challenges grouped into data,
+  algorithms and computing), not a list of ICU data problems; MIMIC-III
+  covers ~53,000 adult hospital admissions to critical care (2001-2012).
+  Checked against sources and found correct: Gu et al. (2025) including
+  its "ChatGPT moment" conclusion; Burger et al. (2024); Ashrafi et al.
+  (2024) results (0.9228, 1,177 patients); the ~0.86 AUROC of the
+  Harutyunyan channel-wise LSTM (confirmed from a table that reproduces
+  the benchmark's results); MOMENT, YAIB and Chronos metadata. Well-known
+  classics (Vaswani, Hochreiter, Chen & Guestrin, Raffel, Lim, Zerveas,
+  Pollard, Faltys, Johnson MIMIC-IV) were checked from memory only; look
+  them up before any formal publication.
 - Still open: an optional cleaner fine-tuning test (train the head first on
   standardised features, then fine-tune the encoder); GPU/cluster runs of
   larger fine-tuning if access is arranged.
