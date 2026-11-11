@@ -709,15 +709,15 @@ Condition timed: forward_fill (timing does not depend on imputation).
 
 ### Results (forward_fill, CPU only)
 
-| Model                       | Training time                                                 | Inference (ms/patient) | Full test set (3,236)  |
-| --------------------------- | ------------------------------------------------------------- | ---------------------- | ---------------------- |
-| Logistic regression         | 1.1 s final fit; search ~23 s (est.)                          | 0.0009                 | 0.003 s                |
-| Random Forest               | 26 s final fit; search ~86 min on one core (est.)             | 0.056                  | 0.18 s                 |
-| XGBoost                     | 5.6 s final fit; search ~19 min on one core (est.)            | 0.011                  | 0.04 s                 |
-| LSTM                        | ~3.1 h (est.: 245 s/epoch x 45 epochs)                        | 2.83                   | 9.2 s                  |
-| TFT                         | ~2.2 h (est.: 66.8 s/epoch x 29 epochs x 4 configs)           | 2.33                   | 7.5 s                  |
-| Chronos zero-shot (sampled) | ~18 h for both conditions together (measured, Stage 8)        | 1372                   | ~74 min (extrapolated) |
-| Chronos fine-tuned          | 34.8 h, 3 epochs, forward_fill (log); >= 28.9 h linear_interp | 341                    | ~18 min (extrapolated) |
+| Model                       | Training time                                         | Inference (ms/patient) | Full test set (3,236) |
+| --------------------------- | ----------------------------------------------------- | ---------------------- | --------------------- |
+| Logistic regression         | 1.1 s final fit; search ~23 s (est.)                  | 0.0009                 | 0.003 s               |
+| Random Forest               | 26 s final fit; search ~86 min on one core (est.)     | 0.056                  | 0.18 s                |
+| XGBoost                     | 5.6 s final fit; search ~19 min on one core (est.)    | 0.011                  | 0.04 s                |
+| LSTM                        | ~3.1 h (est.: 245 s/epoch x 45 epochs)                | 2.83                   | 9.2 s                 |
+| TFT                         | ~2.2 h (est.: 66.8 s/epoch x 29 epochs x 4 configs)   | 2.33                   | 7.5 s                 |
+| Chronos zero-shot (sampled) | ~18 h for both conditions together (measured, Stage 8) | 1372                   | ~74 min (extrapolated) |
+| Chronos fine-tuned          | 34.8 h, 3 epochs, forward_fill (log); >= 28.9 h linear_interp | 341             | ~18 min (extrapolated) |
 
 ### Notes
 
@@ -851,29 +851,29 @@ must be checked against the labels before pairing).
 
 ### AUROC with 95% bootstrap CI (test)
 
-| Model (head) | forward_fill            | linear_interp           |
-| ------------ | ----------------------- | ----------------------- |
-| Mini, LR     | 0.7749 [0.7501, 0.8007] | 0.7753 [0.7502, 0.8017] |
-| Mini, MLP    | 0.8033 [0.7800, 0.8265] | 0.8000 [0.7775, 0.8233] |
-| Small, LR    | 0.7747 [0.7483, 0.8009] | 0.7776 [0.7526, 0.8029] |
-| Small, MLP   | 0.8053 [0.7810, 0.8286] | 0.8006 [0.7777, 0.8234] |
-| Base, LR     | 0.7790 [0.7529, 0.8041] | 0.7754 [0.7502, 0.8017] |
-| Base, MLP    | 0.8067 [0.7836, 0.8297] | 0.7996 [0.7770, 0.8221] |
+| Model (head)      | forward_fill           | linear_interp          |
+| ----------------- | ---------------------- | ---------------------- |
+| Mini, LR          | 0.7749 [0.7501, 0.8007] | 0.7753 [0.7502, 0.8017] |
+| Mini, MLP         | 0.8033 [0.7800, 0.8265] | 0.8000 [0.7775, 0.8233] |
+| Small, LR         | 0.7747 [0.7483, 0.8009] | 0.7776 [0.7526, 0.8029] |
+| Small, MLP        | 0.8053 [0.7810, 0.8286] | 0.8006 [0.7777, 0.8234] |
+| Base, LR          | 0.7790 [0.7529, 0.8041] | 0.7754 [0.7502, 0.8017] |
+| Base, MLP         | 0.8067 [0.7836, 0.8297] | 0.7996 [0.7770, 0.8221] |
 
 ### Paired AUROC differences (A - B), forward_fill / linear_interp
 
-| A                | B                           | forward_fill                       | linear_interp                      |
-| ---------------- | --------------------------- | ---------------------------------- | ---------------------------------- |
-| Base LR          | Mini LR                     | +0.0042 [-0.0022, +0.0111] ns      | +0.0002 [-0.0036, +0.0036] ns      |
-| Base MLP         | Mini MLP                    | +0.0035 [-0.0029, +0.0094] ns      | -0.0003 [-0.0075, +0.0069] ns      |
-| Small MLP        | Small LR                    | +0.0306 [+0.0146, +0.0471] **sig** | +0.0230 [+0.0079, +0.0381] **sig** |
-| Small LR (exact) | Chronos zero-shot (sampled) | +0.0055 [-0.0024, +0.0128] ns      | +0.0042 [+0.0004, +0.0077] **sig** |
-| Small LR (exact) | Chronos fine-tuned          | -0.0017 [-0.0130, +0.0091] ns      | +0.0003 [-0.0079, +0.0082] ns      |
-| Small MLP        | Chronos fine-tuned          | +0.0289 [+0.0127, +0.0442] **sig** | +0.0232 [+0.0084, +0.0374] **sig** |
-| Base MLP         | Chronos fine-tuned          | +0.0303 [+0.0148, +0.0450] **sig** | +0.0223 [+0.0075, +0.0374] **sig** |
-| Mini MLP         | Logistic regression         | -0.0070 [-0.0271, +0.0133] ns      | -0.0159 [-0.0359, +0.0032] ns      |
-| Small MLP        | Logistic regression         | -0.0050 [-0.0246, +0.0157] ns      | -0.0153 [-0.0361, +0.0048] ns      |
-| Base MLP         | Logistic regression         | -0.0036 [-0.0233, +0.0161] ns      | -0.0162 [-0.0366, +0.0036] ns      |
+| A | B | forward_fill | linear_interp |
+| - | - | ------------ | ------------- |
+| Base LR | Mini LR | +0.0042 [-0.0022, +0.0111] ns | +0.0002 [-0.0036, +0.0036] ns |
+| Base MLP | Mini MLP | +0.0035 [-0.0029, +0.0094] ns | -0.0003 [-0.0075, +0.0069] ns |
+| Small MLP | Small LR | +0.0306 [+0.0146, +0.0471] **sig** | +0.0230 [+0.0079, +0.0381] **sig** |
+| Small LR (exact) | Chronos zero-shot (sampled) | +0.0055 [-0.0024, +0.0128] ns | +0.0042 [+0.0004, +0.0077] **sig** |
+| Small LR (exact) | Chronos fine-tuned | -0.0017 [-0.0130, +0.0091] ns | +0.0003 [-0.0079, +0.0082] ns |
+| Small MLP | Chronos fine-tuned | +0.0289 [+0.0127, +0.0442] **sig** | +0.0232 [+0.0084, +0.0374] **sig** |
+| Base MLP | Chronos fine-tuned | +0.0303 [+0.0148, +0.0450] **sig** | +0.0223 [+0.0075, +0.0374] **sig** |
+| Mini MLP | Logistic regression | -0.0070 [-0.0271, +0.0133] ns | -0.0159 [-0.0359, +0.0032] ns |
+| Small MLP | Logistic regression | -0.0050 [-0.0246, +0.0157] ns | -0.0153 [-0.0361, +0.0048] ns |
+| Base MLP | Logistic regression | -0.0036 [-0.0233, +0.0161] ns | -0.0162 [-0.0366, +0.0036] ns |
 
 (ns = 95% CI includes 0. Also significant, from the same run: frozen MLP vs
 sampled zero-shot at every size, +0.026 to +0.038; Mini MLP vs Mini LR,
@@ -920,3 +920,9 @@ the main models (every model misses about half of the deaths).
 `evaluation/make_cost_figure.py` draws the AUROC-versus-inference-cost
 figure used in the paper (values hard-coded at the top of the script;
 output `results/figures/auroc_vs_cost.png`).
+
+---
+
+- Still open: an optional cleaner fine-tuning test (train the head first on
+  standardised features, then fine-tune the encoder); GPU/cluster runs of
+  larger fine-tuning if access is arranged.
